@@ -178,3 +178,48 @@ public final class Susess {
                 } else {
                     serveUi(ex, method, path);
                 }
+            } catch (HttpErr e) {
+                writeJson(ex, e.code, Json.obj(
+                        "ok", false,
+                        "error", e.message,
+                        "code", e.code
+                ));
+            } catch (Throwable t) {
+                Log.error("handler crash", t);
+                writeJson(ex, 500, Json.obj(
+                        "ok", false,
+                        "error", "internal_error",
+                        "code", 500
+                ));
+            } finally {
+                long dtMs = (System.nanoTime() - t0) / 1_000_000L;
+                Log.info("req", "m", method, "p", path, "ms", String.valueOf(dtMs));
+            }
+        }
+
+        private void serveUi(HttpExchange ex, String method, String path) throws IOException {
+            if (!method.equals("GET") && !method.equals("HEAD")) throw new HttpErr(405, "method_not_allowed");
+            if (path.equals("/")) path = "/index.html";
+            path = sanitizePath(path);
+            Path file = cfg.uiDir.resolve(path.substring(1)).normalize();
+            if (!file.startsWith(cfg.uiDir.normalize())) throw new HttpErr(403, "forbidden");
+            if (!Files.exists(file) || Files.isDirectory(file)) throw new HttpErr(404, "not_found");
+
+            String mime = URLConnection.guessContentTypeFromName(file.getFileName().toString());
+            if (mime == null) mime = "application/octet-stream";
+            byte[] data = Files.readAllBytes(file);
+
+            Headers h = ex.getResponseHeaders();
+            h.set("Content-Type", mime + "; charset=utf-8");
+            h.set("Cache-Control", "no-store");
+
+            if (method.equals("HEAD")) {
+                ex.sendResponseHeaders(200, -1);
+                ex.close();
+                return;
+            }
+
+            ex.sendResponseHeaders(200, data.length);
+            try (OutputStream os = ex.getResponseBody()) {
+                os.write(data);
+            } finally {
