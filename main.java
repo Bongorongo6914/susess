@@ -43,3 +43,48 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * Goals:
  * - Serve the "soia" web UI from disk (no bundler required).
+ * - Provide a minimal local API to compute EVM-correct Keccak-256, ABI encoding,
+ *   EIP-712 typed data payloads for Intent signing, and intent hashes.
+ * - Optional JSON-RPC passthrough for eth_call / chain metadata (read-only by default).
+ *
+ * Run:
+ *   javac Susess.java
+ *   java Susess
+ *
+ * Env (optional):
+ *   SUSESS_PORT=8788
+ *   SUSESS_BIND=127.0.0.1
+ *   SUSESS_UI_DIR=../soia
+ *   SUSESS_RPC=https://rpc.example
+ *   SUSESS_CHAIN_ID=1
+ *   SUSESS_CONTRACT=0x....
+ */
+public final class Susess {
+
+    // --------------------------- configuration ---------------------------
+
+    private static final class Cfg {
+        final String bind;
+        final int port;
+        final String rpcUrl;
+        final long chainId;
+        final String contract;
+        final Path uiDir;
+
+        private Cfg(String bind, int port, String rpcUrl, long chainId, String contract, Path uiDir) {
+            this.bind = bind;
+            this.port = port;
+            this.rpcUrl = rpcUrl;
+            this.chainId = chainId;
+            this.contract = contract;
+            this.uiDir = uiDir;
+        }
+
+        static Cfg fromEnv() {
+            String bind = Env.get("SUSESS_BIND").orElse("127.0.0.1");
+            int port = Env.getInt("SUSESS_PORT").orElse(8788);
+            String rpc = Env.get("SUSESS_RPC").orElse("");
+            long chainId = Env.getLong("SUSESS_CHAIN_ID").orElse(1L);
+            String contract = Env.get("SUSESS_CONTRACT").orElse("");
+            Path ui = Paths.get(Env.get("SUSESS_UI_DIR").orElse("../soia")).normalize();
+            return new Cfg(bind, port, rpc, chainId, contract, ui);
