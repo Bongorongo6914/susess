@@ -88,3 +88,48 @@ public final class Susess {
             String contract = Env.get("SUSESS_CONTRACT").orElse("");
             Path ui = Paths.get(Env.get("SUSESS_UI_DIR").orElse("../soia")).normalize();
             return new Cfg(bind, port, rpc, chainId, contract, ui);
+        }
+    }
+
+    private static final class Env {
+        static Optional<String> get(String k) {
+            String v = System.getenv(k);
+            if (v == null) return Optional.empty();
+            v = v.trim();
+            if (v.isEmpty()) return Optional.empty();
+            return Optional.of(v);
+        }
+
+        static Optional<Integer> getInt(String k) {
+            return get(k).flatMap(s -> {
+                try {
+                    return Optional.of(Integer.parseInt(s.trim()));
+                } catch (RuntimeException e) {
+                    return Optional.empty();
+                }
+            });
+        }
+
+        static Optional<Long> getLong(String k) {
+            return get(k).flatMap(s -> {
+                try {
+                    return Optional.of(Long.parseLong(s.trim()));
+                } catch (RuntimeException e) {
+                    return Optional.empty();
+                }
+            });
+        }
+    }
+
+    // --------------------------- lifecycle ---------------------------
+
+    private static final AtomicLong REQ_ID = new AtomicLong(1000);
+    private static final SecureRandom RNG = new SecureRandom();
+
+    public static void main(String[] args) throws Exception {
+        Cfg cfg = Cfg.fromEnv();
+        Log.info("susess starting",
+                "bind", cfg.bind,
+                "port", String.valueOf(cfg.port),
+                "uiDir", cfg.uiDir.toAbsolutePath().toString(),
+                "rpc", cfg.rpcUrl.isEmpty() ? "(disabled)" : cfg.rpcUrl,
