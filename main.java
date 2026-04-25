@@ -133,3 +133,48 @@ public final class Susess {
                 "port", String.valueOf(cfg.port),
                 "uiDir", cfg.uiDir.toAbsolutePath().toString(),
                 "rpc", cfg.rpcUrl.isEmpty() ? "(disabled)" : cfg.rpcUrl,
+                "chainId", String.valueOf(cfg.chainId),
+                "contract", cfg.contract.isEmpty() ? "(unset)" : cfg.contract);
+
+        HttpServer server = HttpServer.create(new InetSocketAddress(cfg.bind, cfg.port), 0);
+        server.setExecutor(Executors.newFixedThreadPool(12, new NamedThreadFactory("susess-http-")));
+
+        Router r = new Router(cfg);
+        server.createContext("/", r);
+
+        server.start();
+        Log.info("ready", "url", "http://" + cfg.bind + ":" + cfg.port + "/");
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            Log.info("shutdown requested");
+            try {
+                server.stop(0);
+            } catch (RuntimeException ignored) {
+            }
+        }, "susess-shutdown"));
+    }
+
+    // --------------------------- http routing ---------------------------
+
+    private static final class Router implements HttpHandler {
+        private final Cfg cfg;
+        private final Api api;
+
+        Router(Cfg cfg) {
+            this.cfg = cfg;
+            this.api = new Api(cfg);
+        }
+
+        @Override
+        public void handle(HttpExchange ex) throws IOException {
+            long t0 = System.nanoTime();
+            String method = ex.getRequestMethod().toUpperCase(Locale.ROOT);
+            URI uri = ex.getRequestURI();
+            String path = Optional.ofNullable(uri.getPath()).orElse("/");
+
+            try {
+                if (path.startsWith("/api/")) {
+                    api.handle(ex, method, path);
+                } else {
+                    serveUi(ex, method, path);
+                }
